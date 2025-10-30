@@ -19,6 +19,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('📧 New Contact Form Submission:');
       console.log('='.repeat(50));
       console.log(`Time: ${new Date().toISOString()}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Gmail User: ${process.env.GMAIL_USER ? 'SET' : 'NOT SET'}`);
+      console.log(`Gmail Password: ${process.env.GMAIL_APP_PASSWORD ? 'SET' : 'NOT SET'}`);
       console.log(`Name: ${name}`);
       console.log(`Email: ${email}`);
       console.log(`Subject: ${subject}`);
@@ -29,17 +32,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-          user: 'kumarrajiv12945@gmail.com',
-          pass: process.env.GMAIL_APP_PASSWORD || 'your_app_password_here', // You need to set this
+          user: process.env.GMAIL_USER || 'kumarrajiv12945@gmail.com',
+          pass: process.env.GMAIL_APP_PASSWORD,
         },
       });
 
       // Email options
       const mailOptions = {
-        from: '"Portfolio Contact" <kumarrajiv12945@gmail.com>',
+        from: '"Rajiv Kumar Portfolio" <kumarrajiv12945@gmail.com>',
         to: 'kumarrajiv12945@gmail.com',
         replyTo: email,
-        subject: `Portfolio Contact: ${subject}`,
+        subject: `🔔 New Portfolio Message: ${subject} - from ${name}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #8b5cf6; border-bottom: 2px solid #8b5cf6; padding-bottom: 10px;">
@@ -68,23 +71,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `,
       };
 
-      // Try to send email
-      if (process.env.GMAIL_APP_PASSWORD && process.env.GMAIL_APP_PASSWORD !== 'your_app_password_here') {
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Email sent successfully:', info.messageId);
-        
-        res.json({ 
-          success: true, 
-          messageId: info.messageId,
-          message: "Email sent directly to kumarrajiv12945@gmail.com"
-        });
-      } else {
-        console.log('⚠️  Gmail App Password not configured, email not sent');
-        res.status(500).json({ 
+      // Validate Gmail configuration
+      if (!process.env.GMAIL_APP_PASSWORD) {
+        console.log('❌ Gmail App Password not configured');
+        console.log('Environment variables check:');
+        console.log(`- GMAIL_USER: ${process.env.GMAIL_USER ? 'SET' : 'NOT SET'}`);
+        console.log(`- GMAIL_APP_PASSWORD: ${process.env.GMAIL_APP_PASSWORD ? 'SET' : 'NOT SET'}`);
+        console.log('🚨 For Vercel: Add environment variables in Vercel dashboard');
+        return res.status(500).json({ 
           success: false, 
-          error: "Email service not configured. Please set GMAIL_APP_PASSWORD environment variable." 
+          error: "Gmail App Password not configured. Please add GMAIL_APP_PASSWORD to environment variables." 
         });
       }
+
+      // Send email
+      console.log('📤 Attempting to send email via Gmail SMTP...');
+      const info = await transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully!');
+      console.log(`   Message ID: ${info.messageId}`);
+      console.log(`   Accepted: ${info.accepted?.length || 0} recipients`);
+      console.log(`   Rejected: ${info.rejected?.length || 0} recipients`);
+      
+      res.json({ 
+        success: true, 
+        messageId: info.messageId,
+        message: `Email sent successfully to kumarrajiv12945@gmail.com`,
+        details: {
+          accepted: info.accepted?.length || 0,
+          rejected: info.rejected?.length || 0
+        }
+      });
     } catch (error) {
       console.error("❌ Email sending failed:", error);
       res.status(500).json({ 
